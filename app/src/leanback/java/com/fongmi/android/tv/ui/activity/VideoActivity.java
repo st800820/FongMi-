@@ -107,7 +107,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 
 import master.flame.danmaku.danmaku.model.BaseDanmaku;
-import master.flame.danmaku.danmaku.model.IDisplay;
+import master.flame.danmaku.danmaku.model.IDisplayer;
 import master.flame.danmaku.danmaku.model.android.DanmakuContext;
 import okhttp3.Call;
 import okhttp3.Response;
@@ -134,6 +134,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private List<String> mBroken;
     private History mHistory;
     private Players mPlayers;
+    private boolean background;
     private boolean fullscreen;
     private boolean initTrack;
     private boolean initAuto;
@@ -298,6 +299,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         mR1 = this::hideControl;
         mR2 = this::setTraffic;
         mR3 = this::showEmpty;
+        setBackground(false);
         setRecyclerView();
         setVideoView();
         setDanmuView();
@@ -399,11 +401,14 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private void setDanmuView() {
         mPlayers.setDanmuView(mBinding.danmaku);
         HashMap<Integer, Integer> maxLines = new HashMap<>();
-        maxLines.put(BaseDanmaku.TYPE_FIX_TOP, 3);
-        maxLines.put(BaseDanmaku.TYPE_SCROLL_RL, 3);
-        maxLines.put(BaseDanmaku.TYPE_SCROLL_LR, 3);
-        maxLines.put(BaseDanmaku.TYPE_FIX_BOTTOM, 1);
-        mDanmakuContext.setDanmakuStyle(IDisplay.DANMAKU_STYLE_STROKEN, 3).setMaximumLines(maxLines).setDanmakuMargin(12).setScaleTextSize(0.8f);
+        float scrollSpeedFactor = 1.6f - (Setting.getDanmuSpeed() * 0.2f);
+        scrollSpeedFactor = scrollSpeedFactor < 0 ? 1.2f : scrollSpeedFactor;
+        int maxLine = Setting.getDanmuMaxLine(3);
+        maxLines.put(BaseDanmaku.TYPE_FIX_TOP, maxLine);
+        maxLines.put(BaseDanmaku.TYPE_SCROLL_RL, maxLine);
+        maxLines.put(BaseDanmaku.TYPE_SCROLL_LR, maxLine);
+        maxLines.put(BaseDanmaku.TYPE_FIX_BOTTOM, maxLine);
+        mDanmakuContext.setDanmakuStyle(IDisplayer.DANMAKU_STYLE_STROKEN, 3).setMaximumLines(maxLines).setScrollSpeedFactor(scrollSpeedFactor).setDanmakuMargin(12).setScaleTextSize(0.8f);
         mBinding.control.danmu.setActivated(Setting.isDanmu());
     }
 
@@ -1118,6 +1123,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onActionEvent(ActionEvent event) {
+        if (isBackground()) return;
         if (ActionEvent.PLAY.equals(event.getAction()) || ActionEvent.PAUSE.equals(event.getAction())) {
             onKeyCenter();
         } else if (ActionEvent.NEXT.equals(event.getAction())) {
@@ -1131,6 +1137,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onRefreshEvent(RefreshEvent event) {
+        if (isBackground()) return;
         if (event.getType() == RefreshEvent.Type.DETAIL) getDetail();
         else if (event.getType() == RefreshEvent.Type.PLAYER) onRefresh();
         else if (event.getType() == RefreshEvent.Type.DANMAKU) checkDanmu(event.getPath());
@@ -1139,6 +1146,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onPlayerEvent(PlayerEvent event) {
+        if (isBackground()) return;
         switch (event.getState()) {
             case 0:
                 setPosition();
@@ -1208,6 +1216,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onErrorEvent(ErrorEvent event) {
+        if (isBackground()) return;
         if (mPlayers.addRetry() > event.getRetry()) checkError(event);
         else onRefresh();
     }
@@ -1357,6 +1366,14 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     private void onPlay() {
         mPlayers.play();
         hideCenter();
+    }
+
+    public boolean isBackground() {
+        return background;
+    }
+
+    public void setBackground(boolean background) {
+        this.background = background;
     }
 
     private boolean isFullscreen() {
@@ -1545,6 +1562,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     @Override
     protected void onResume() {
         super.onResume();
+        setBackground(false);
         mClock.start();
         onPlay();
     }
@@ -1552,6 +1570,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     @Override
     protected void onPause() {
         super.onPause();
+        setBackground(true);
         onPaused(false);
         mClock.stop();
     }
